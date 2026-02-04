@@ -13,7 +13,8 @@ importlib.reload(stock_advisor) # Reload is necessary for logic updates
 st.set_page_config(
     page_title="Weekly Signal 주식 분석기",
     page_icon="💰",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed" # Mobile optimization
 )
 
 # ------------------------------------------------------------------
@@ -79,17 +80,45 @@ st.markdown("""
     .score-high { color: #dc3545; } /* High Score Red */
     .score-mid { color: #333d4b; }
     
-    /* 버튼 스타일 오버라이드 */
+    /* 버튼 스타일 오버라이드 (Mobile Touch Friendly) */
     .stButton button {
         border-radius: 8px;
         font-weight: 600;
         border: none;
         background-color: #f2f4f6;
         color: #333d4b;
+        padding: 12px 20px; /* Larger touch target */
+        margin-bottom: 8px; /* Spacing between list items */
     }
     .stButton button:hover {
         background-color: #e5e8eb;
         color: #333d4b;
+    }
+
+    /* AI 관심도 카드 스타일 */
+    .interest-card {
+        background-color: #f0f7ff; /* Light Blue */
+        border: 2px solid #3b77ff;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    .interest-title {
+        font-size: 14px;
+        color: #333d4b;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .interest-score {
+        font-size: 24px;
+        color: #3b77ff;
+        font-weight: 900;
+    }
+    .interest-grade {
+        font-size: 14px;
+        color: #555;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -302,15 +331,26 @@ with right_col:
                         chart_name = name
                         break
                 
-                # 1열: 종목명 및 가격
-                m_col1, m_col2, m_col3 = st.columns([1.5, 1, 1])
-                with m_col1:
-                    st.markdown(f"## {chart_name}")
-                    st.caption(f"Code: {ticker}")
-                with m_col2:
-                    st.metric("현재가", f"{result['current_price']:,.0f}")
-                with m_col3:
-                    st.metric("종합 점수", f"{result['score']}점")
+                # [Mobile Optimized] Header Layout
+                # Stack Title, Price, Score naturally on mobile, side-by-side on desktop
+                top_c1, top_c2 = st.columns([2, 1])
+                
+                with top_c1:
+                   st.markdown(f"## {chart_name}")
+                   st.caption(f"Code: {ticker}")
+                   
+                with top_c2:
+                   # Use HTML for better control over alignment
+                   st.markdown(f"""
+                   <div style="text-align: right;">
+                       <span style="font-size: 14px; color: gray;">현재가</span><br>
+                       <span style="font-size: 24px; font-weight: bold;">{result['current_price']:,.0f}원</span>
+                   </div>
+                   <div style="text-align: right; margin-top: 5px;">
+                        <span style="font-size: 14px; color: gray;">종합 점수</span><br>
+                        <span style="font-size: 28px; font-weight: 900; color: #3b77ff;">{result['score']}점</span>
+                   </div>
+                   """, unsafe_allow_html=True)
                 
                 st.divider()
                 
@@ -351,32 +391,51 @@ with right_col:
                 
                 sb = result.get('score_breakdown', {'trend':0, 'fundamental':0, 'timing':0})
                 
-                # 1. 필터 (오닐 - 실적)
-                c1, c2 = st.columns([1, 4])
-                with c1: st.markdown("**💰 실적 (30)**")
-                with c2: 
-                    st.progress(min(100, int(sb['fundamental'] / 30 * 100)), text=f"{sb['fundamental']}점 / 30점")
-                    # Show Grade if available
-                    if 'fundamental_grade' in result and result['fundamental_grade']:
-                        st.caption(f"{result['fundamental_grade']}")
+                # 1. 실적 (Fundamental)
+                with st.container():
+                     c1, c2 = st.columns([1, 4])
+                     with c1: st.markdown("**💰 실적 (30)**")
+                     with c2: 
+                        st.progress(min(100, int(sb['fundamental'] / 30 * 100)), text=f"{sb['fundamental']}점 / 30점")
+                        if 'fundamental_grade' in result and result['fundamental_grade']:
+                             st.caption(f"{result['fundamental_grade']}")
                 
-                # 2. 추세 (와인스타인 - 추세)
-                c1, c2 = st.columns([1, 4])
-                with c1: st.markdown("**📈 추세 (40)**")
+                st.markdown("---")
+                
+                # 2. 추세 (Trend)
+                with st.container():
+                    c1, c2 = st.columns([1, 4])
+                    with c1: st.markdown("**📈 추세 (40)**")
+                    with c2: 
+                        st.progress(min(100, int(sb['trend'] / 40 * 100)), text=f"{sb['trend']}점 / 40점")
+                        if 'trend_grade' in result and result['trend_grade']:
+                            st.caption(f"{result['trend_grade']}")
 
-                with c2: 
-                    st.progress(min(100, int(sb['trend'] / 40 * 100)), text=f"{sb['trend']}점 / 40점")
-                    if 'trend_grade' in result and result['trend_grade']:
-                        st.caption(f"{result['trend_grade']}")
+                st.markdown("---")
                 
                 # 3. AI 관심도 (Interest)
-                c1, c2 = st.columns([1, 4])
-                with c1: st.markdown("**🤖 AI 관심도 (30)**")
-                with c2: 
-                    interest_score = sb.get('interest', 0)
-                    st.progress(min(100, int(interest_score / 30 * 100)), text=f"{interest_score}점 / 30점")
-                    if 'interest_grade' in result and result['interest_grade']:
-                        st.caption(f"{result['interest_grade']}")
+                st.markdown('<div class="interest-card">', unsafe_allow_html=True)
+                
+                interest_score = sb.get('interest', 0)
+                grade_text = result.get('interest_grade', '데이터 없음')
+                
+                # Title
+                st.markdown(f'<div class="interest-title">🤖 AI 관심도 (30점 만점)</div>', unsafe_allow_html=True)
+                
+                # Split Score and Desc to avoid overlap
+                # Use st.columns inside the card if needed, or just block divs
+                st.markdown(f'''
+                    <div style="margin-top: 10px; margin-bottom: 5px;">
+                        <span class="interest-score">{interest_score}점</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="interest-grade">{grade_text}</span>
+                    </div>
+                ''', unsafe_allow_html=True)
+                
+                # Progress bar
+                st.progress(min(100, int(interest_score / 30 * 100)))
+                st.markdown('</div>', unsafe_allow_html=True)
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
